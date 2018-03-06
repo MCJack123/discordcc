@@ -317,18 +317,18 @@ function readAllMessages()
                 term.clear()
                 term.setCursorPos(1, 1)
                 print([[The syntax of the viewer is similar to less.
-                    ----------------------------------
-                    h     *  Display this help.
-                    down  *  Forward one line.
-                    up    *  Backward one line.
-                    f     *  Forward one screen.
-                    b     *  Backward one screen.
-                    d     *  Forward one half-screen.
-                    u     *  Backward one half-screen.
-                    ,     *  Go to the first line.
-                    .     *  Go to the last line.
-                    ----------------------------------
-                    Press any key to close.]])
+----------------------------------
+h     *  Display this help.
+down  *  Forward one line.
+up    *  Backward one line.
+f     *  Forward one screen.
+b     *  Backward one screen.
+d     *  Forward one half-screen.
+u     *  Backward one half-screen.
+,     *  Go to the first line.
+.     *  Go to the last line.
+----------------------------------
+Press any key to close.]])
                 os.pullEvent("key")
                 break
             --else
