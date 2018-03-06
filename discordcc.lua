@@ -227,7 +227,7 @@ function sendMessages()
         end
         local w, h = term.getSize()
         term.setCursorPos(1, h-1)
-        write("                                                 ")
+        write("                                                  ")
         term.setCursorPos(1, h-1)
         write("> ")
         waiting = true
@@ -259,7 +259,7 @@ function readAllMessages()
         term.clear()
         term.setCursorPos(1, 1)
         local l = i
-        while l < i + h and lines[l] ~= nil do
+        while l < i + h - 1 and lines[l] ~= nil do
             if lines[l].type == 0 then
                 term.setTextColor(lines[l].color)
                 write(lines[l].user)
@@ -272,6 +272,17 @@ function readAllMessages()
                 term.setTextColor(colors.white)
             end
             l=l+1
+        end
+        if lines[l].type == 0 then
+            term.setTextColor(lines[l].color)
+            write(lines[l].user)
+            term.setTextColor(colors.gray)
+            write(": " .. lines[l].message)
+            term.setTextColor(colors.white)
+        else
+            term.setTextColor(colors.gray)
+            write(lines[l].message)
+            term.setTextColor(colors.white)
         end
         --write(i)
         while true do
