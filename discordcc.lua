@@ -320,8 +320,8 @@ function readAllMessages()
                     Press any key to close.]])
                 os.pullEvent("key")
                 break
-            else
-                print("Unknown key " .. button)
+            --else
+                --print("Unknown key " .. button)
             end
         end
     end
