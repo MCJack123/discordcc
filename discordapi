@@ -1,0 +1,1061 @@
+-- This code is licensed under the MIT Open Source License.
+
+-- Copyright (c) 2015 Ruairidh Carmichael - ruairidhcarmichael@live.co.uk
+
+-- Permission is hereby granted, free of charge, to any person obtaining a copy
+-- of this software and associated documentation files (the "Software"), to deal
+-- in the Software without restriction, including without limitation the rights
+-- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+-- copies of the Software, and to permit persons to whom the Software is
+-- furnished to do so, subject to the following conditions:
+
+-- The above copyright notice and this permission notice shall be included in
+-- all copies or substantial portions of the Software.
+
+-- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+-- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+-- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+-- THE SOFTWARE.
+
+--local path = (...):match('(.-)[^%.]+$')
+	
+	_VERSION = '0.0.1'
+	_DESCRIPTION = 'Lua API Wrapper for Discord'
+
+
+--if type(client) ~= "table" then os.loadAPI('/discord/client') end
+--if type(message) ~= "table" then os.loadAPI('/discord/message') end
+
+--Client = client.Client
+--Message = message.Message
+
+-- Amalgamated source below
+
+-- class.lua
+
+middleclass = {
+  _VERSION     = 'middleclass v3.1.0',
+  _DESCRIPTION = 'Object Orientation for Lua',
+  _URL         = 'https://github.com/kikito/middleclass',
+  _LICENSE     = [[
+    MIT LICENSE
+
+    Copyright (c) 2011 Enrique García Cota
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the
+    "Software"), to deal in the Software without restriction, including
+    without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to
+    permit persons to whom the Software is furnished to do so, subject to
+    the following conditions:
+
+    The above copyright notice and this permission notice shall be included
+    in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+  ]]
+}
+
+local function _setClassDictionariesMetatables(aClass)
+  local dict = aClass.__instanceDict
+  dict.__index = dict
+
+  local super = aClass.super
+  if super then
+    local superStatic = super.static
+    setmetatable(dict, super.__instanceDict)
+    setmetatable(aClass.static, { __index = function(_,k) return rawget(dict,k) or superStatic[k] end })
+  else
+    setmetatable(aClass.static, { __index = function(_,k) return dict[k] end })
+  end
+end
+
+local function _setClassMetatable(aClass)
+  setmetatable(aClass, {
+    __tostring = function() return "class " .. aClass.name end,
+    __index    = aClass.static,
+    __newindex = aClass.__instanceDict,
+    __call     = function(self, ...) return self:new(...) end
+  })
+end
+
+local function _createClass(name, super)
+  local aClass = { name = name, super = super, static = {}, __mixins = {}, __instanceDict={} }
+  aClass.subclasses = setmetatable({}, {__mode = "k"})
+
+  _setClassDictionariesMetatables(aClass)
+  _setClassMetatable(aClass)
+
+  return aClass
+end
+
+local function _createLookupMetamethod(aClass, name)
+  return function(...)
+    local method = aClass.super[name]
+    assert( type(method)=='function', tostring(aClass) .. " doesn't implement metamethod '" .. name .. "'" )
+    return method(...)
+  end
+end
+
+local function _setClassMetamethods(aClass)
+  for _,m in ipairs(aClass.__metamethods) do
+    aClass[m]= _createLookupMetamethod(aClass, m)
+  end
+end
+
+local function _setDefaultInitializeMethod(aClass, super)
+  aClass.initialize = function(instance, ...)
+    return super.initialize(instance, ...)
+  end
+end
+
+local function _includeMixin(aClass, mixin)
+  assert(type(mixin)=='table', "mixin must be a table")
+  for name,method in pairs(mixin) do
+    if name ~= "included" and name ~= "static" then aClass[name] = method end
+  end
+  if mixin.static then
+    for name,method in pairs(mixin.static) do
+      aClass.static[name] = method
+    end
+  end
+  if type(mixin.included)=="function" then mixin:included(aClass) end
+  aClass.__mixins[mixin] = true
+end
+
+local Object = _createClass("Object", nil)
+
+Object.static.__metamethods = { '__add', '__band', '__bor', '__bxor', '__bnot', '__call', '__concat',
+                                '__div', '__eq', '__ipairs', '__idiv', '__le', '__len', '__lt', '__mod',
+                                '__mul', '__pairs', '__pow', '__shl', '__shr', '__sub', '__tostring', '__unm' }
+
+function Object.static:allocate()
+  assert(type(self) == 'table', "Make sure that you are using 'Class:allocate' instead of 'Class.allocate'")
+  return setmetatable({ class = self }, self.__instanceDict)
+end
+
+function Object.static:new(...)
+  local instance = self:allocate()
+  instance:initialize(...)
+  return instance
+end
+
+function Object.static:subclass(name)
+  assert(type(self) == 'table', "Make sure that you are using 'Class:subclass' instead of 'Class.subclass'")
+  assert(type(name) == "string", "You must provide a name(string) for your class")
+
+  local subclass = _createClass(name, self)
+  _setClassMetamethods(subclass)
+  _setDefaultInitializeMethod(subclass, self)
+  self.subclasses[subclass] = true
+  self:subclassed(subclass)
+
+  return subclass
+end
+
+function Object.static:subclassed(other) end
+
+function Object.static:isSubclassOf(other)
+  return type(other)                   == 'table' and
+         type(self)                    == 'table' and
+         type(self.super)              == 'table' and
+         ( self.super == other or
+           type(self.super.isSubclassOf) == 'function' and
+           self.super:isSubclassOf(other)
+         )
+end
+
+function Object.static:include( ... )
+  assert(type(self) == 'table', "Make sure you that you are using 'Class:include' instead of 'Class.include'")
+  for _,mixin in ipairs({...}) do _includeMixin(self, mixin) end
+  return self
+end
+
+function Object.static:includes(mixin)
+  return type(mixin)          == 'table' and
+         type(self)           == 'table' and
+         type(self.__mixins)  == 'table' and
+         ( self.__mixins[mixin] or
+           type(self.super)           == 'table' and
+           type(self.super.includes)  == 'function' and
+           self.super:includes(mixin)
+         )
+end
+
+function Object:initialize() end
+
+function Object:__tostring() return "instance of " .. tostring(self.class) end
+
+function Object:isInstanceOf(aClass)
+  return type(self)                == 'table' and
+         type(self.class)          == 'table' and
+         type(aClass)              == 'table' and
+         ( aClass == self.class or
+           type(aClass.isSubclassOf) == 'function' and
+           self.class:isSubclassOf(aClass)
+         )
+end
+
+
+
+local function class(name, super, ...)
+  super = super or Object
+  return super:subclass(name, ...)
+end
+
+middleclass.Object = Object
+
+setmetatable(middleclass, { __call = function(_, ...) return middleclass.class(...) end })
+
+
+-- util.lua
+
+function responseIsSuccessful(response)
+	return response.code ~= nil and response.code >= 200 and response.code < 300
+end
+
+-- endpoints.lua
+
+local endpoints = {}
+endpoints.base 		= 'https://discordapp.com'
+endpoints.apiBase 	= endpoints.base .. '/api'
+endpoints.gateway 	= endpoints.apiBase .. '/gateway'
+endpoints.users 		= endpoints.apiBase .. '/users'
+endpoints.register 	= endpoints.apiBase .. '/auth/register'
+endpoints.login 		= endpoints.apiBase .. '/auth/login'
+endpoints.logout 	    = endpoints.apiBase .. '/auth/logout'
+endpoints.servers 	= endpoints.apiBase .. '/guilds'
+endpoints.channels 	= endpoints.apiBase .. '/channels'
+
+-- json.lua
+
+--
+-- json.lua
+--
+-- Copyright (c) 2015 rxi
+--
+-- This library is free software; you can redistribute it and/or modify it
+-- under the terms of the MIT license. See LICENSE for details.
+--
+
+_version = "0.1.0"
+
+-- Encode
+
+local encode
+
+local escape_char_map = {
+  [ "\\" ] = "\\\\",
+  [ "\"" ] = "\\\"",
+  [ "\b" ] = "\\b",
+  [ "\f" ] = "\\f",
+  [ "\n" ] = "\\n",
+  [ "\r" ] = "\\r",
+  [ "\t" ] = "\\t",
+}
+
+local escape_char_map_inv = { [ "\\/" ] = "/" }
+for k, v in pairs(escape_char_map) do
+  escape_char_map_inv[v] = k
+end
+
+
+local function escape_char(c)
+  return escape_char_map[c] or string.format("\\u%04x", c:byte())
+end
+
+
+local function encode_nil(val)
+  return "null"
+end 
+
+
+local function encode_table(val, stack)
+  local res = {}
+  stack = stack or {}
+
+  -- Circular reference?
+  if stack[val] then error("circular reference") end
+
+  stack[val] = true
+
+  if val[1] ~= nil or next(val) == nil then
+    -- Treat as array -- check keys are valid and it is not sparse
+    local n = 0
+    for k in pairs(val) do
+      if type(k) ~= "number" then
+        error("invalid table: mixed or invalid key types")
+      end
+      n = n + 1
+    end
+    if n ~= #val then
+      error("invalid table: sparse array")
+    end
+    -- Encode
+    for i, v in ipairs(val) do
+      table.insert(res, encode(v, stack))
+    end
+    stack[val] = nil
+    return "[" .. table.concat(res, ",") .. "]"
+
+  else
+    -- Treat as an object
+    for k, v in pairs(val) do
+      if type(k) ~= "string" then
+        error("invalid table: mixed or invalid key types")
+      end
+      table.insert(res, encode(k, stack) .. ":" .. encode(v, stack))
+    end
+    stack[val] = nil
+    return "{" .. table.concat(res, ",") .. "}"
+  end
+end
+
+
+local function encode_string(val)
+  return '"' .. val:gsub('[%z\1-\31\\"]', escape_char) .. '"'
+end
+
+
+local function encode_number(val)
+  -- Check for NaN, -inf and inf
+  if val ~= val or val <= -math.huge or val >= math.huge then
+    error("unexpected number value '" .. tostring(val) .. "'")
+  end
+  return string.format("%.14g", val)
+end
+
+
+local type_func_map = {
+  [ "nil"     ] = encode_nil,
+  [ "table"   ] = encode_table,
+  [ "string"  ] = encode_string,
+  [ "number"  ] = encode_number,
+  [ "boolean" ] = tostring,
+}
+
+
+local encode = function(val, stack)
+  local t = type(val)
+  local f = type_func_map[t]
+  if f then
+    return f(val, stack)
+  end
+  error("unexpected type '" .. t .. "'")
+end
+
+
+local function encode(val)
+  return ( encode(val) )
+end
+
+-- Decode
+
+local parse
+
+local function create_set(...) 
+  local res = {}
+  for i = 1, select("#", ...) do
+    res[ select(i, ...) ] = true
+  end
+  return res
+end
+
+local space_chars   = create_set(" ", "\t", "\r", "\n")
+local delim_chars   = create_set(" ", "\t", "\r", "\n", "]", "}", ",")
+local escape_chars  = create_set("\\", "/", '"', "b", "f", "n", "r", "t", "u")
+local literals      = create_set("true", "false", "null")
+
+local literal_map = {
+  [ "true"  ] = true,
+  [ "false" ] = false,
+  [ "null"  ] = nil,
+}
+
+
+local function next_char(str, idx, set, negate)
+  for i = idx, #str do
+    if set[str:sub(i, i)] ~= negate then
+      return i
+    end
+  end
+  return #str + 1
+end
+
+
+local function decode_error(str, idx, msg)
+  local line_count = 1
+  local col_count = 1
+  for i = 1, idx - 1 do
+    col_count = col_count + 1
+    if str:sub(i, i) == "\n" then
+      line_count = line_count + 1
+      col_count = 1
+    end
+  end
+  error( string.format("%s at line %d col %d", msg, line_count, col_count) )
+end
+
+
+local function codepoint_to_utf8(n)
+  -- http://scripts.sil.org/cms/scripts/page.php?site_id=nrsi&id=iws-appendixa
+  local f = math.floor
+  if n <= 0x7f then
+    return string.char(n)
+  elseif n <= 0x7ff then
+    return string.char(f(n / 64) + 192, n % 64 + 128)
+  elseif n <= 0xffff then
+    return string.char(f(n / 4096) + 224, f(n % 4096 / 64) + 128, n % 64 + 128)
+  elseif n <= 0x10ffff then
+    return string.char(f(n / 262144) + 240, f(n % 262144 / 4096) + 128,
+                       f(n % 4096 / 64) + 128, n % 64 + 128)
+  end
+  error( string.format("invalid unicode codepoint '%x'", n) )
+end
+
+
+local function parse_unicode_escape(s)
+  local n1 = tonumber( s:sub(3, 6),  16 )
+  local n2 = tonumber( s:sub(9, 12), 16 )
+  -- Surrogate pair?
+  if n2 then
+    return codepoint_to_utf8((n1 - 0xd800) * 0x400 + (n2 - 0xdc00) + 0x10000)
+  else
+    return codepoint_to_utf8(n1)
+  end
+end
+
+
+local function parse_string(str, i)
+  local has_unicode_escape = false
+  local has_surrogate_escape = false
+  local has_escape = false
+  local last
+  for j = i + 1, #str do
+    local x = str:byte(j)
+
+    if x < 32 then
+      decode_error(str, j, "control character in string")
+    end
+
+    if last == 92 then -- "\\" (escape char)
+      if x == 117 then -- "u" (unicode escape sequence)
+        local hex = str:sub(j + 1, j + 5)
+        if not hex:find("%x%x%x%x") then
+          decode_error(str, j, "invalid unicode escape in string")
+        end
+        if hex:find("^[dD][89aAbB]") then
+          has_surrogate_escape = true
+        else
+          has_unicode_escape = true
+        end
+      else
+        local c = string.char(x)
+        if not escape_chars[c] then
+          decode_error(str, j, "invalid escape char '" .. c .. "' in string")
+        end
+        has_escape = true
+      end
+      last = nil
+
+    elseif x == 34 then -- '"' (end of string)
+      local s = str:sub(i + 1, j - 1)
+      if has_surrogate_escape then 
+        s = s:gsub("\\u[dD][89aAbB]..\\u....", parse_unicode_escape)
+      end
+      if has_unicode_escape then 
+        s = s:gsub("\\u....", parse_unicode_escape)
+      end
+      if has_escape then
+        s = s:gsub("\\.", escape_char_map_inv)
+      end
+      return s, j + 1
+    
+    else
+      last = x
+    end
+  end
+  decode_error(str, i, "expected closing quote for string")
+end
+
+
+local function parse_number(str, i)
+  local x = next_char(str, i, delim_chars)
+  local s = str:sub(i, x - 1)
+  local n = tonumber(s)
+  if not n then
+    decode_error(str, i, "invalid number '" .. s .. "'")
+  end
+  return n, x
+end
+
+
+local function parse_literal(str, i)
+  local x = next_char(str, i, delim_chars)
+  local word = str:sub(i, x - 1)
+  if not literals[word] then
+    decode_error(str, i, "invalid literal '" .. word .. "'")
+  end
+  return literal_map[word], x
+end
+
+
+local function parse_array(str, i)
+  local res = {}
+  local n = 1
+  i = i + 1
+  while 1 do
+    local x
+    i = next_char(str, i, space_chars, true)
+    -- Empty / end of array?
+    if str:sub(i, i) == "]" then 
+      i = i + 1
+      break
+    end
+    -- Read token
+    x, i = parse(str, i)
+    res[n] = x
+    n = n + 1
+    -- Next token 
+    i = next_char(str, i, space_chars, true)
+    local chr = str:sub(i, i)
+    i = i + 1
+    if chr == "]" then break end
+    if chr ~= "," then decode_error(str, i, "expected ']' or ','") end
+  end
+  return res, i
+end
+
+
+local function parse_object(str, i)
+  local res = {}
+  i = i + 1
+  while 1 do
+    local key, val
+    i = next_char(str, i, space_chars, true)
+    -- Empty / end of object?
+    if str:sub(i, i) == "}" then 
+      i = i + 1
+      break
+    end
+    -- Read key
+    if str:sub(i, i) ~= '"' then
+      decode_error(str, i, "expected string for key")
+    end
+    key, i = parse(str, i)
+    -- Read ':' delimiter
+    i = next_char(str, i, space_chars, true)
+    if str:sub(i, i) ~= ":" then
+      decode_error(str, i, "expected ':' after key")
+    end
+    i = next_char(str, i + 1, space_chars, true)
+    -- Read value
+    val, i = parse(str, i)
+    -- Set
+    res[key] = val
+    -- Next token
+    i = next_char(str, i, space_chars, true)
+    local chr = str:sub(i, i)
+    i = i + 1
+    if chr == "}" then break end
+    if chr ~= "," then decode_error(str, i, "expected '}' or ','") end
+  end
+  return res, i
+end
+
+
+local char_func_map = {
+  [ '"' ] = parse_string,
+  [ "0" ] = parse_number,
+  [ "1" ] = parse_number,
+  [ "2" ] = parse_number,
+  [ "3" ] = parse_number,
+  [ "4" ] = parse_number,
+  [ "5" ] = parse_number,
+  [ "6" ] = parse_number,
+  [ "7" ] = parse_number,
+  [ "8" ] = parse_number,
+  [ "9" ] = parse_number,
+  [ "-" ] = parse_number,
+  [ "t" ] = parse_literal,
+  [ "f" ] = parse_literal,
+  [ "n" ] = parse_literal,
+  [ "[" ] = parse_array,
+  [ "{" ] = parse_object,
+}
+
+
+parse = function(str, idx)
+  local chr = str:sub(idx, idx)
+  local f = char_func_map[chr]
+  if f then
+    return f(str, idx)
+  end
+  decode_error(str, idx, "unexpected character '" .. chr .. "'")
+end
+
+
+local function decode(str)
+  if type(str) ~= "string" then
+    error("expected argument of type string, got " .. type(str))
+  end
+  return ( parse(str, next_char(str, 1, space_chars, true)) )
+end
+
+
+-- wrapper.lua
+
+local function send(endpoint, method, data, headers)
+
+    local retval = {}
+    headers["User-Agent"] = "Mozilla/4.0 (compatible; MSIE 9.0; Windows NT 6.1)"
+    if method == "GET" then
+        local handle = http.get(endpoint, headers)
+        if handle == nil then
+            print("Error in GET request to " .. endpoint)
+            return {}
+        end
+        retval.body = handle.readAll()
+        retval.headers = headers
+        retval.set_cookies = {}
+        retval.code = handle.getResponseCode()
+        retval.raw_headers = headers
+        --handle.close()
+        handle = nil
+        return retval
+    elseif method == "POST" then
+        local handle = http.post(endpoint, textutils.serializeJSON(data), headers)
+        if handle == nil then
+            print("Error in POST request to " .. endpoint)
+            return {}
+        end
+        local status, newdata = pcall(handle.readAll)
+        if not status then
+            print(newdata)
+            return
+        end
+        retval.body = newdata
+        retval.headers = headers
+        retval.set_cookies = {}
+        retval.code = handle.getResponseCode()
+        retval.raw_headers = headers
+        --handle.close()
+        handle = nil
+        return retval
+    else
+        print("Incorrect method " .. method .. " given")
+        return {}
+    end
+end
+
+-- message.lua
+
+-------------------------------------
+-- Discord Message Class
+-- @module Message
+
+-- local path = (...):match('(.-)[^%.]+$')
+
+--if type(wrapper) ~= "table" then os.loadAPI('/discord/wrapper') end
+--local request = wrapper
+--if type(class) ~= "table" then os.loadAPI('/discord/class') end
+--if type(json) ~= "table" then os.loadAPI('/discord/json') end
+--if type(endpoints) ~= "table" then os.loadAPI('/discord/endpoints') end
+--if type(util) ~= "table" then os.loadAPI('/discord/util') end
+-- if type() ~= "table" then os.loadAPI('/discord/') end
+
+Message = class('MessageObject')
+
+--- Internally initialize's the Message class.
+--- Please use Message:new(packet, token) instead.
+-- @param packet Packet to be sent as the message.
+-- @param token Authentication token from login.
+function Message:initialize(packet, token)
+
+	self.packet = packet or {}
+	self.token = token or ''
+
+	self.headers = {}
+	self.headers['authorization'] = self.token
+	self.headers['Content-Type'] = 'application/json'
+
+end
+
+--- Edits a sent message.
+-- @param msg The new message to replace the old one.
+-- @return Response Packet received from Discord
+function Message:edit(msg)
+
+	local payload = {
+		content = tostring(msg)
+	}
+
+	local response = send(endpoints.channels .. '/' .. self.packet.channel_id .. '/messages/' .. self.packet.id, 'PATCH', payload, self.headers)
+
+	if responseIsSuccessful(response) then
+		self.packet = decode(response.body)
+	end
+
+	return utssl.responseIsSuccessful(response)
+
+end
+
+--- Deletes a sent message.
+-- @return Response Packet received from Discord
+function Message:delete()
+
+	local response = send(endpoints.channels .. '/' .. self.packet.channel_id .. '/messages/' .. self.packet.id, 'DELETE', nil, self.headers)
+
+	if responseIsSuccessful(response) then
+		self = nil
+	end
+
+	return responseIsSuccessful(response)
+
+end
+
+
+-- client.lua
+
+-- This code is licensed under the MIT Open Source License.
+
+-------------------------------------
+-- Discord Client Class
+-- @module Client
+
+-- local path = (...):match('(.-)[^%.]+$')
+
+--if type(wrapper) ~= "table" then os.loadAPI('/discord/wrapper') end
+--local request = wrapper
+--if type(class) ~= "table" then os.loadAPI('/discord/class') end
+--if type(json) ~= "table" then os.loadAPI('/discord/json') end
+--if type(endpoints) ~= "table" then os.loadAPI('/discord/endpoints') end
+--if type(util) ~= "table" then os.loadAPI('/discord/util') end
+
+--if type(message) ~= "table" then os.loadAPI('/discord/message') end
+
+print('Loaded client')
+
+Client = class('ClientObject')
+
+--- Internally initialize's the Client class.
+--- Please use Client:new(options) instead.
+-- @param options Options table (Currently useless.)
+function Client:initialize(options)
+
+	self.isLoggedIn = false
+	self.options = options
+	self.token = ''
+	self.email = ''
+	self.user = {}
+
+	self.headers = {}
+
+	self.headers['authorization'] = self.token
+	self.headers['Content-Type'] = 'application/json'
+ self.headers['User-Agent'] = 'Mozilla/4.0 (compatible; MSIE 9.0; Windows NT 6.1)'
+
+	self.callbacks = {}
+
+	self.socket = nil
+
+end
+
+--- Logs the Client into Discord's servers.
+--- This is required to use most of the Clients functions.
+-- @param email E-mail Address of the account to log in.
+-- @param password Password of the account to log in.
+-- (WARNING: Do NOT store this password in a GitHub repo or anything of the sorts.)
+-- @return True or False depending on success.
+function Client:login(email, password)
+
+	local payload = {
+		email = email,
+		password = password
+	}
+
+	local response = send(endpoints.login, 'POST', payload, self.headers)
+	local success = responseIsSuccessful(response)
+
+	if success then
+
+		self.token = decode(response.body).token
+		self.isLoggedIn = true
+		self.headers['authorization'] = self.token
+		self.email = email
+
+		self.user = self:getCurrentUser()
+
+	end
+
+	return self.token
+
+end
+
+function Client:loginWithToken(token)
+
+	self.token = token
+	self.isLoggedIn = true
+	self.headers['authorization'] = token
+
+	self.user = self:getCurrentUser()
+
+	return token
+end
+
+--- Logs the Client out of the Discord server.
+--- (This is currently useless/does nothing)
+-- @param email E-mail Address of the account to log in.
+-- @param password Password of the account to log in.
+-- (WARNING: Do NOT store this password in a GitHub repo or anything of the sorts.)
+-- @return True or False depending on success.
+function Client:logout()
+
+	if self.isLoggedIn then
+
+		local payload = {
+			token = self.token
+		}
+
+		local response = send(endpoints.login, 'POST', payload)
+		local success = responseIsSuccessful(response)
+
+		if success then
+			self.isLoggedIn = false
+			self.token = nil
+		end
+
+		return success
+
+	else
+		return false
+	end
+
+end
+
+--- Gets the current authentication token.
+--- (Only if logged in of course.)
+-- @return Authentication Token
+function Client:getToken()
+
+	if self.isLoggedIn then
+		return self.token
+	else
+		return nil
+	end
+
+end
+
+--- Gets the current Gateway we are connected to.
+--- (Only if logged in of course.)
+-- @return Gateway URL
+function Client:getGateway()
+
+	if self.isLoggedIn then
+
+		local response = send(endpoints.gateway, 'GET', nil, self.headers)
+
+		if responseIsSuccessful(response) then
+			return decode(response.body).url
+		else
+			return nil
+		end
+
+	end
+
+end
+
+--- Gets the current User information.
+--- (Only if logged in of course.)
+-- @return User Table
+function Client:getCurrentUser()
+
+	if self.isLoggedIn then
+
+		local response = send(endpoints.users .. '/@me', 'GET', nil, self.headers)
+		if responseIsSuccessful(response) then
+			return decode(response.body)
+		else
+			return nil
+		end
+
+	else
+		return nil
+	end
+
+end
+
+--- Gets the GuildMember information for userid in guild.
+-- @param guild The guild of the member.
+-- @param userid The id of the user.
+-- @return GuildMember Table
+function Client:getGuildMember(guild, userid)
+    if self.isLoggedIn then
+        local response = send(endpoints.servers .. "/" .. guild .. "/members/" .. userid, 'GET', nil, self.headers)
+        if responseIsSuccessful(response) then
+            return decode(response.body)
+        else
+            return nil
+        end
+    else
+        return nil
+    end
+end
+
+--- Gets roles for a guild.
+-- @param guild The guild to find roles.
+-- @return Table of roles
+function Client:getRoles(guild)
+    if self.isLoggedIn then
+        local response = send(endpoints.servers .. "/" .. guild .. "/roles", 'GET', nil, self.headers)
+        if responseIsSuccessful(response) then
+            return decode(response.body)
+        else
+            return nil
+        end
+    else
+        return nil
+    end
+end
+
+--- Gets a table of Servers the current User is connected to.
+--- (Only if logged in of course.)
+-- @return Server Table
+function Client:getServerList()
+
+	if self.isLoggedIn then
+
+		local response = send(endpoints.users .. '/@me/guilds', 'GET', nil, self.headers)
+
+		if responseIsSuccessful(response) then
+			self.user = decode(response.body)
+			return decode(response.body)
+		else
+			return nil
+		end
+
+	else
+		return nil
+	end
+
+end
+
+--- Gets a table of Channels from the provided Server id.
+--- (Only if logged in of course.)
+-- @param id Server ID
+-- @return Channel Table
+function Client:getChannelList(id)
+
+	if self.isLoggedIn then
+
+		local response = send(endpoints.servers .. '/' .. id .. '/channels', 'GET', nil, self.headers)
+
+		if responseIsSuccessful(response) then
+			return decode(response.body)
+		else
+			return nil
+		end
+
+	else
+		return nil
+	end
+
+end
+
+-- Gets all messages in a channel 
+-- @param id Channel ID
+-- @return Array of messages (NOT Lua Message objects, but Discord internal)
+function Client:getMessages(id)
+    if self.isLoggedIn then
+        local response = http.get(endpoints.channels .. "/" .. id .. "/messages", self.headers)
+        if response.getResponseCode() >= 200 and response.getResponseCode() < 300 then
+            local res = decode(response.readAll())
+            response.close()
+            return res
+        else
+            return nil
+        end
+    else
+        return nil
+    end
+end
+
+--- Sends a Message from the Client to a Channel.
+--- (Only if logged in of course.)
+-- @param message Message to be sent.
+-- @param id ID for Channel to send to.
+-- @return Message Class
+function Client:sendMessage(message, id)
+
+	if self.isLoggedIn then
+
+		local payload = {
+			content = tostring(message)
+		}
+
+		local response = http.post(endpoints.channels .. '/' .. id .. '/messages', textutils.serializeJSON(payload), self.headers)
+
+		--return :new(decode(response.body), self.token)
+		--local ret = decode(response.readAll())
+		--response.close()
+		return nil
+
+	else
+		return nil
+	end
+
+end
+
+--- Edits a sent Message.
+--- (Only if logged in of course.)
+-- @param message The new message to replace the old one.
+-- @param msgClass Message Class to edit.
+-- @return Message Class
+function Client:editMessage(message, msgClass)
+
+	if self.isLoggedIn then
+
+		msgClass:edit(message)
+
+	end
+
+end
+
+--- Deletes a sent Message.
+--- (Only if logged in of course.)
+-- @param msgClass Message Class to delete.
+-- @return Message Class
+function Client:deleteMessage(msgClass)
+
+	if self.isLoggedIn then
+
+		msgClass:delete()
+
+	end
+
+end
+
+--- Starts the Client loop.
+--- (Does nothing of real use at the moment, will interact with WebSockets in the future)
+function Client:run()
+
+	if self.isLoggedIn then
+
+		while true do
+			if self.callbacks.think then self.callbacks.think() end
+
+		end
+
+	end
+
+end
