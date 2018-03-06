@@ -273,7 +273,7 @@ function readAllMessages()
             end
             l=l+1
         end
-        write(i)
+        --write(i)
         while true do
             local ev, button = os.pullEvent("key")
             if button == keys.q then
